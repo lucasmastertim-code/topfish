@@ -53,6 +53,16 @@
     }
     .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--primary); }
 
+    /* Ajuste para o seletor de produtos exibir o nome completo sem cortes */
+    #produtoSelect {
+      width: 100%;
+      white-space: normal;
+      text-overflow: ellipsis;
+    }
+    #produtoSelect option {
+      padding: 8px;
+    }
+
     /* Área de Leitura Automática */
     .reader-box { background: #f0fdf4; border: 2px dashed var(--success); padding: 15px; border-radius: 8px; margin-bottom: 20px; }
     .reader-box p { font-size: 0.85rem; color: #166534; margin-bottom: 8px; font-weight: bold; }
@@ -226,17 +236,17 @@
 
         <h2>Item do Pedido & Comissão</h2>
         <div class="form-grid">
-          <div class="form-group">
+          <div class="form-group" style="grid-column: span 2;">
             <label>Produto (Código Top Fish) *</label>
             <select id="produtoSelect" onchange="atualizarPrecoTabela()">
-              <option value="6" data-nome="Tilápia drenada IQF" data-preco="39.30" selected>[Cod 6] Tilápia drenada IQF (R$ 39,30)</option>
-              <option value="11" data-nome="Tilápia 10% IQF" data-preco="37.30">[Cod 11] Tilápia 10% IQF (R$ 37,30)</option>
-              <option value="22" data-nome="Tilápia 20% IQF" data-preco="35.30">[Cod 22] Tilápia 20% IQF (R$ 35,30)</option>
-              <option value="0" data-nome="Filé de Tilápia Premium" data-preco="40.30">[Cod 0] Filé de Tilápia Premium (R$ 40,30)</option>
-              <option value="5" data-nome="Filé de Tilápia Drenado" data-preco="39.30">[Cod 5] Filé de Tilápia Drenado (R$ 39,30)</option>
-              <option value="10" data-nome="Filé de Tilápia 10%" data-preco="37.30">[Cod 10] Filé de Tilápia 10% (R$ 37,30)</option>
-              <option value="20" data-nome="Filé de Tilápia 20%" data-preco="35.30">[Cod 20] Filé de Tilápia 20% (R$ 35,30)</option>
-              <option value="50" data-nome="Postas de Tilápia" data-preco="24.90">[Cod 50] Postas de Tilápia (R$ 24,90)</option>
+              <option value="6" data-nome="Tilápia drenada IQF" data-preco="39.30" selected>[Cod 6] Tilápia drenada IQF - R$ 39,30/kg</option>
+              <option value="11" data-nome="Tilápia 10% IQF" data-preco="37.30">[Cod 11] Tilápia 10% IQF - R$ 37,30/kg</option>
+              <option value="22" data-nome="Tilápia 20% IQF" data-preco="35.30">[Cod 22] Tilápia 20% IQF - R$ 35,30/kg</option>
+              <option value="0" data-nome="Filé de Tilápia Premium" data-preco="40.30">[Cod 0] Filé de Tilápia Premium - R$ 40,30/kg</option>
+              <option value="5" data-nome="Filé de Tilápia Drenado" data-preco="39.30">[Cod 5] Filé de Tilápia Drenado - R$ 39,30/kg</option>
+              <option value="10" data-nome="Filé de Tilápia 10%" data-preco="37.30">[Cod 10] Filé de Tilápia 10% - R$ 37,30/kg</option>
+              <option value="20" data-nome="Filé de Tilápia 20%" data-preco="35.30">[Cod 20] Filé de Tilápia 20% - R$ 35,30/kg</option>
+              <option value="50" data-nome="Postas de Tilápia" data-preco="24.90">[Cod 50] Postas de Tilápia - R$ 24,90/kg</option>
             </select>
           </div>
           <div class="form-group">
@@ -247,7 +257,7 @@
             <label>Preço de Venda (R$/Kg) *</label>
             <input type="number" id="precoVenda" value="39.30" step="0.10" oninput="calcularValores(true)" required>
           </div>
-          <div class="form-group">
+          <div class="form-group" style="grid-column: span 2;">
             <label>Tipo de Operação / Comissão *</label>
             <select id="regraComissao" onchange="calcularValores(false)">
               <option value="auto">Automático (4% sobre Tabela + 30% sobre Excedente)</option>
@@ -283,10 +293,20 @@
       <div class="card">
         <h2>Painel de Fechamento Periódico</h2>
 
-        <!-- PAINEL DE CONTROLE DE FECHAMENTO -->
+        <!-- PAINEL DE CONTROLE DE FECHAMENTO (Automático & Manual) -->
         <div class="closing-panel">
           <p id="infoUltimoFechamento">📌 Último Fechamento Realizado: Nenhum registrado.</p>
-          <button class="btn btn-closing" onclick="realizarFechamentoPeriodico()">🎯 Registrar Fechamento até o Último Pedido & Exportar</button>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+            <button class="btn btn-closing" style="flex: 1;" onclick="realizarFechamentoPeriodico()">🎯 Fechamento Automático (Até o Último)</button>
+          </div>
+          <div style="margin-top: 12px; border-top: 1px dashed #bfdbfe; padding-top: 10px;">
+            <p style="font-size: 0.85rem; color: #1e40af; margin-bottom: 6px;">⚙️ Fechamento Manual por Intervalo de Pedidos:</p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px;">
+              <input type="text" id="manualPedidoInicio" class="filter-input" placeholder="Início (ex: #PED-1001)">
+              <input type="text" id="manualPedidoFim" class="filter-input" placeholder="Fim (ex: #PED-1050)">
+              <button class="btn btn-closing" style="padding: 8px 12px;" onclick="realizarFechamentoManual()">📥 Fechar Manual</button>
+            </div>
+          </div>
         </div>
 
         <!-- RELATÓRIO DOS ÚLTIMOS FECHAMENTOS REALIZADOS -->
@@ -353,9 +373,9 @@
   <div id="toast">Mensagem aqui</div>
 
   <script>
-    if (!localStorage.getItem('topfish_versao_limpa_2026_v10')) {
+    if (!localStorage.getItem('topfish_versao_limpa_2026_v11')) {
       localStorage.removeItem('topfish_historico');
-      localStorage.setItem('topfish_versao_limpa_2026_v10', 'true');
+      localStorage.setItem('topfish_versao_limpa_2026_v11', 'true');
     }
 
     const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbw-IGRWHSSOMYJfBfk6LaZAqOk_d_PybqzwePsGgYUnaEvc5Ts8bs5Jg7fyjk-Mo19J/exec";
@@ -389,6 +409,7 @@
     function normalizarPedido(p) {
       p = p || {};
       const st = String(p.status || '');
+      const isCancelado = /cancel/i.test(st);
       const regra = p.regraComissao || (/bonif/i.test(st) ? 'bonificacao' : 'auto');
       const qtd = paraNumero(p.qtdKg);
       const total = paraNumero(p.total);
@@ -396,7 +417,7 @@
       if (!preco && qtd > 0 && total > 0) preco = Math.round(total / qtd * 100) / 100;
       return {
         id: p.id,
-        status: /cancel/i.test(st) ? 'Cancelado' : (st || 'VENDA NORMAL'),
+        status: isCancelado ? 'Cancelado' : (st || 'VENDA NORMAL'),
         numPedido: String(p.numPedido || ''),
         dataLancamento: String(p.dataLancamento || ''),
         nomeFantasia: String(p.nomeFantasia || ''),
@@ -565,7 +586,7 @@
         card.className = 'closing-card';
         card.innerHTML = `
           <div class="header-info">
-            <span>📁 Fechamento #${listaFechamentos.length - index} (Até ${f.atePedido})</span>
+            <span>📁 Fechamento #${listaFechamentos.length - index} (${f.dePedido ? f.dePedido + ' até ' : 'Até '}${f.atePedido})</span>
             <span style="color: var(--success);">Comissão: R$ ${f.comissaoTotal.toFixed(2)}</span>
           </div>
           <div class="details">
@@ -675,7 +696,6 @@
       calcularValores(true);
     }
 
-    // ===== CÁLCULO DE COMISSÃO CORRIGIDO (Spread & Downgrade exatos) =====
     function calcularValores(ajustarRegraAuto = false) {
       const prodSelect = document.getElementById('produtoSelect');
       const opt = prodSelect.options[prodSelect.selectedIndex];
@@ -689,12 +709,12 @@
         if (precoVenda < precoTabela) {
           const diferencaNegativa = precoTabela - precoVenda;
           if (diferencaNegativa >= 2.00) {
-            selectRegra.value = '2'; // 2 reais ou mais abaixo -> 2%
+            selectRegra.value = '2';
           } else {
-            selectRegra.value = '3'; // Até 1 real abaixo -> 3%
+            selectRegra.value = '3';
           }
         } else {
-          selectRegra.value = 'auto'; // Preço igual ou acima -> Automático
+          selectRegra.value = 'auto';
         }
       }
 
@@ -712,7 +732,6 @@
         } else if (regra === '2') {
           comissaoCalculada = totalVenda * 0.02;
         } else {
-          // 4% sobre a Tabela + 30% sobre o Excedente (a mais)
           const valorTabelaTotal = qtd * precoTabela;
           const comissaoBaseTabela = valorTabelaTotal * 0.04;
           
@@ -888,6 +907,42 @@
         gerarPlanilhaExcel(pedidosParaFechar, `Fechamento_Comissoes_${ultimoPedidoLote.numPedido}`);
         atualizarInfoFechamentoUI();
         mostrarToast(`🎯 Fechamento realizado até ${ultimoPedidoLote.numPedido}!`);
+      }
+    }
+
+    function realizarFechamentoManual() {
+      const inicioStr = (document.getElementById('manualPedidoInicio').value || '').trim().toUpperCase();
+      const fimStr = (document.getElementById('manualPedidoFim').value || '').trim().toUpperCase();
+
+      if (!inicioStr || !fimStr) {
+        return alert("⚠️ Informe o pedido inicial e o pedido final para o fechamento manual (ex: #PED-1001 e #PED-1020).");
+      }
+
+      const numInicio = parseInt(inicioStr.replace(/\D/g, '')) || 0;
+      const numFim = parseInt(fimStr.replace(/\D/g, '')) || 0;
+
+      const pedidosParaFechar = historicoPedidos.filter(p => {
+        if (p.status === "Cancelado") return false;
+        const n = numDoPedido(p);
+        return n >= numInicio && n <= numFim;
+      });
+
+      if (pedidosParaFechar.length === 0) {
+        return alert("⚠️ Nenhum pedido ativo encontrado nesse intervalo!");
+      }
+
+      if (confirm(`Deseja realizar o fechamento manual de ${pedidosParaFechar.length} pedido(s) (de ${inicioStr} até ${fimStr})?`)) {
+        let somaVendas = 0, somaComissao = 0;
+        pedidosParaFechar.forEach(p => { somaVendas += (p.total || 0); somaComissao += (p.comissao || 0); });
+
+        listaFechamentos.unshift({
+          id: Date.now(), dePedido: inicioStr, atePedido: fimStr, dataFechamento: new Date().toISOString(),
+          qtdPedidos: pedidosParaFechar.length, vendasTotal: somaVendas, comissaoTotal: somaComissao, pedidos: pedidosParaFechar
+        });
+        localStorage.setItem('topfish_lista_fechamentos', JSON.stringify(listaFechamentos));
+        gerarPlanilhaExcel(pedidosParaFechar, `Fechamento_Manual_${inicioStr}_a_${fimStr}`);
+        atualizarInfoFechamentoUI();
+        mostrarToast(`🎯 Fechamento manual de ${pedidosParaFechar.length} pedidos realizado!`);
       }
     }
 
