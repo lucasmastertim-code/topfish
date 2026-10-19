@@ -53,28 +53,18 @@
     }
     .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--primary); }
 
-    /* Ajuste para o seletor de produtos exibir o nome completo sem cortes */
-    #produtoSelect {
-      width: 100%;
-      white-space: normal;
-      text-overflow: ellipsis;
-    }
-    #produtoSelect option {
-      padding: 8px;
-    }
+    #produtoSelect { width: 100%; white-space: normal; text-overflow: ellipsis; }
+    #produtoSelect option { padding: 8px; }
 
-    /* Área de Leitura Automática */
     .reader-box { background: #f0fdf4; border: 2px dashed var(--success); padding: 15px; border-radius: 8px; margin-bottom: 20px; }
     .reader-box p { font-size: 0.85rem; color: #166534; margin-bottom: 8px; font-weight: bold; }
 
-    /* Resumo Financeiro */
     .financial-summary {
       display: flex; justify-content: space-between; background: #f1f5f9; padding: 15px;
       border-radius: 8px; font-weight: bold; margin-bottom: 15px; border-left: 4px solid var(--primary);
     }
     .financial-summary div span { color: var(--primary); font-size: 1.1rem; }
 
-    /* Consolidado do Histórico */
     .dashboard-consolidado {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px;
     }
@@ -84,16 +74,13 @@
     .dash-box p { font-size: 0.8rem; color: #64748b; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; }
     .dash-box h3 { font-size: 1.2rem; color: var(--primary); }
 
-    /* Painel de Fechamento */
     .closing-panel { background: #eff6ff; border: 1px solid #bfdbfe; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
     .closing-panel p { font-size: 0.9rem; color: #1e40af; margin-bottom: 8px; font-weight: bold; }
 
-    /* Filtros Avançados */
     .filters-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; margin-bottom: 15px; }
     @media (max-width: 768px) { .filters-grid { grid-template-columns: 1fr; } }
     .filter-input { padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; outline: none; background: #fff; }
 
-    /* Botões de Ação */
     .actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .btn {
       padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;
@@ -144,7 +131,6 @@
     .btn-action.download { background: #0d9488; }
     .btn-action.download:hover { background: #0f766e; }
 
-    /* Notificação Toast */
     #toast {
       visibility: hidden; min-width: 280px; background-color: #15803d; color: #fff; text-align: center;
       border-radius: 8px; padding: 14px; position: fixed; z-index: 1000; left: 50%; bottom: 30px;
@@ -164,7 +150,6 @@
       <p>Representação Comercial (Sincronizado na Nuvem)</p>
     </header>
 
-    <!-- Navegação por Abas -->
     <div class="tabs">
       <button class="tab-btn active" id="tab-btn-novo" onclick="switchTab('novo-pedido')">📝 Novo Pedido</button>
       <button class="tab-btn" id="tab-btn-hist" onclick="switchTab('historico')">📚 Histórico & Fechamentos</button>
@@ -174,7 +159,6 @@
     <div id="novo-pedido" class="tab-content active">
       <div class="card">
         
-        <!-- Área de Leitura Automática do WhatsApp -->
         <div class="reader-box">
           <p>🤖 Transcrição Inteligente WhatsApp (IA)</p>
           <textarea id="rawWhatsappText" rows="5" placeholder="Cole aqui qualquer mensagem do Zap..."></textarea>
@@ -184,7 +168,6 @@
         <h2 id="formTitle">Dados do Cliente & Controle</h2>
         <input type="hidden" id="editPedidoId" value="">
         
-        <!-- Busca Inteligente / Seleção de Cliente -->
         <div style="background: #e0f2fe; border: 1px solid #bae6fd; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
           <label style="font-size: 0.85rem; font-weight: bold; color: #0369a1; display: block; margin-bottom: 5px;">⚡ Buscar ou Digitar Cliente (Autocompletar Inteligente):</label>
           <input list="listaClientesCache" id="inputBuscaCliente" class="filter-input" style="width: 100%; font-weight: bold; color: var(--primary);" placeholder="Comece a digitar (ex: Esquina, Mineiro, Koichi)..." oninput="verificarClienteDigitado(this)" onchange="verificarClienteDigitado(this)">
@@ -268,7 +251,6 @@
           </div>
         </div>
 
-        <!-- Resumo em Tempo Real -->
         <div class="financial-summary">
           <div>Valor Total: <br><span id="resumoTotal">R$ 0,00</span></div>
           <div>Comissão Estimada: <br><span id="resumoComissao" style="color: var(--success);">R$ 0,00</span></div>
@@ -279,7 +261,6 @@
           <textarea id="observacoes" rows="2" placeholder="Ex: Tilápia a maior possível, faturar com nota"></textarea>
         </div>
 
-        <!-- Botões de Ação -->
         <div class="actions-grid">
           <button class="btn btn-copy" onclick="copiarPedidoWhatsApp()">📋 Copiar Texto Formatado (WhatsApp)</button>
           <button class="btn btn-save" onclick="salvarPedidoHistórico()">☁️ Salvar Pedido na Nuvem</button>
@@ -293,7 +274,6 @@
       <div class="card">
         <h2>Painel de Fechamento Periódico</h2>
 
-        <!-- PAINEL DE CONTROLE DE FECHAMENTO (Automático & Manual) -->
         <div class="closing-panel">
           <p id="infoUltimoFechamento">📌 Último Fechamento Realizado: Nenhum registrado.</p>
           <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
@@ -309,7 +289,6 @@
           </div>
         </div>
 
-        <!-- RELATÓRIO DOS ÚLTIMOS FECHAMENTOS REALIZADOS -->
         <div style="margin-bottom: 25px;">
           <h3 style="font-size: 1rem; color: var(--primary); margin-bottom: 10px;">📁 Histórico de Fechamentos Anteriores</h3>
           <div id="listaFechamentosAnteriores"></div>
@@ -317,7 +296,6 @@
 
         <h2>Histórico Geral de Pedidos <button onclick="sincronizarHistoricoNuvem()" style="font-size: 0.75rem; padding: 4px 8px; cursor: pointer; background: var(--primary); color: white; border: none; border-radius: 4px; margin-left: 10px;">🔄 Sincronizar Nuvem</button></h2>
 
-        <!-- APURAÇÃO / CONSOLIDADO -->
         <div class="dashboard-consolidado">
           <div class="dash-box">
             <p>Qtd Pedidos</p>
@@ -333,7 +311,6 @@
           </div>
         </div>
 
-        <!-- FILTROS AVANÇADOS -->
         <div class="filters-grid">
           <input type="text" class="filter-input" id="searchHist" placeholder="Filtrar por cliente, CNPJ ou nº do pedido..." onkeyup="renderizarHistorico()">
           <select class="filter-input" id="filterTipo" onchange="renderizarHistorico()">
@@ -373,12 +350,13 @@
   <div id="toast">Mensagem aqui</div>
 
   <script>
-    if (!localStorage.getItem('topfish_versao_limpa_2026_v11')) {
+    if (!localStorage.getItem('topfish_versao_limpa_2026_v12')) {
       localStorage.removeItem('topfish_historico');
-      localStorage.setItem('topfish_versao_limpa_2026_v11', 'true');
+      localStorage.setItem('topfish_versao_limpa_2026_v12', 'true');
     }
 
-    const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbw-IGRWHSSOMYJfBfk6LaZAqOk_d_PybqzwePsGgYUnaEvc5Ts8bs5Jg7fyjk-Mo19J/exec";
+    // ⭐ COLE O SEU NOVO LINK CORRETO DO GOOGLE APPS SCRIPT AQUI ABAIXO:
+    const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbwRIw3dv7JJrUCSSgFFANSE7Im7B7QlenDOgH0lvSrk1cpS0gBcWJQbVRHSsTvpIrJL/exec";
 
     let historicoPedidos = (JSON.parse(localStorage.getItem('topfish_historico')) || []).map(normalizarPedido);
     let listaFechamentos = JSON.parse(localStorage.getItem('topfish_lista_fechamentos')) || [];
@@ -493,6 +471,7 @@
           }
           atualizarListaClientesSelect();
           renderizarHistorico();
+          atualizarInfoFechamentoUI();
           mostrarToast(`✅ Sincronizado! ${dadosNuvem.length} registros.`);
         }
       } catch (err) {
@@ -566,7 +545,9 @@
       if (!infoEl) return;
       if (listaFechamentos.length > 0) {
         const ultimo = listaFechamentos[0];
-        infoEl.innerText = `📌 Último Fechamento: Pedido ${ultimo.atePedido} em ${new Date(ultimo.dataFechamento).toLocaleDateString('pt-BR')}.`;
+        const tipoDesc = ultimo.tipo || 'Automático';
+        const intervalo = ultimo.dePedido ? `${ultimo.dePedido} até ${ultimo.atePedido}` : `Até ${ultimo.atePedido}`;
+        infoEl.innerText = `📌 Último Fechamento (${tipoDesc}): Pedido ${intervalo} em ${new Date(ultimo.dataFechamento).toLocaleDateString('pt-BR')}.`;
       } else {
         infoEl.innerText = `📌 Nenhum fechamento periódico registrado ainda.`;
       }
@@ -584,9 +565,11 @@
       listaFechamentos.forEach((f, index) => {
         const card = document.createElement('div');
         card.className = 'closing-card';
+        const tipoDesc = f.tipo || 'Automático';
+        const intervalo = f.dePedido ? `${f.dePedido} até ${f.atePedido}` : `Até ${f.atePedido}`;
         card.innerHTML = `
           <div class="header-info">
-            <span>📁 Fechamento #${listaFechamentos.length - index} (${f.dePedido ? f.dePedido + ' até ' : 'Até '}${f.atePedido})</span>
+            <span>📁 Fechamento #${listaFechamentos.length - index} (${tipoDesc} - ${intervalo})</span>
             <span style="color: var(--success);">Comissão: R$ ${f.comissaoTotal.toFixed(2)}</span>
           </div>
           <div class="details">
@@ -895,18 +878,18 @@
       if (pedidosParaFechar.length === 0) return alert("Não há novos pedidos desde o último fechamento!");
 
       const ultimoPedidoLote = pedidosParaFechar.reduce((a, b) => numDoPedido(b) > numDoPedido(a) ? b : a);
-      if (confirm(`Deseja realizar o fechamento com ${pedidosParaFechar.length} novo(s) pedido(s) (até ${ultimoPedidoLote.numPedido})?`)) {
+      if (confirm(`Deseja realizar o fechamento automático com ${pedidosParaFechar.length} novo(s) pedido(s) (até ${ultimoPedidoLote.numPedido})?`)) {
         let somaVendas = 0, somaComissao = 0;
         pedidosParaFechar.forEach(p => { somaVendas += (p.total || 0); somaComissao += (p.comissao || 0); });
         
         listaFechamentos.unshift({
-          id: Date.now(), atePedido: ultimoPedidoLote.numPedido, dataFechamento: new Date().toISOString(),
+          id: Date.now(), tipo: 'Automático', atePedido: ultimoPedidoLote.numPedido, dataFechamento: new Date().toISOString(),
           qtdPedidos: pedidosParaFechar.length, vendasTotal: somaVendas, comissaoTotal: somaComissao, pedidos: pedidosParaFechar
         });
         localStorage.setItem('topfish_lista_fechamentos', JSON.stringify(listaFechamentos));
-        gerarPlanilhaExcel(pedidosParaFechar, `Fechamento_Comissoes_${ultimoPedidoLote.numPedido}`);
+        gerarPlanilhaExcel(pedidosParaFechar, `Fechamento_Auto_${ultimoPedidoLote.numPedido}`);
         atualizarInfoFechamentoUI();
-        mostrarToast(`🎯 Fechamento realizado até ${ultimoPedidoLote.numPedido}!`);
+        mostrarToast(`🎯 Fechamento automático realizado até ${ultimoPedidoLote.numPedido}!`);
       }
     }
 
@@ -936,7 +919,7 @@
         pedidosParaFechar.forEach(p => { somaVendas += (p.total || 0); somaComissao += (p.comissao || 0); });
 
         listaFechamentos.unshift({
-          id: Date.now(), dePedido: inicioStr, atePedido: fimStr, dataFechamento: new Date().toISOString(),
+          id: Date.now(), tipo: 'Manual', dePedido: inicioStr, atePedido: fimStr, dataFechamento: new Date().toISOString(),
           qtdPedidos: pedidosParaFechar.length, vendasTotal: somaVendas, comissaoTotal: somaComissao, pedidos: pedidosParaFechar
         });
         localStorage.setItem('topfish_lista_fechamentos', JSON.stringify(listaFechamentos));
@@ -948,7 +931,7 @@
 
     function baixarFechamentoAntigo(id) {
       const f = listaFechamentos.find(x => x.id === id);
-      if (f) gerarPlanilhaExcel(f.pedidos, `Fechamento_Comissoes_${f.atePedido}`);
+      if (f) gerarPlanilhaExcel(f.pedidos, f.dePedido ? `Fechamento_Manual_${f.dePedido}_a_${f.atePedido}` : `Fechamento_Auto_${f.atePedido}`);
     }
 
     function duplicarPedido(id) {
