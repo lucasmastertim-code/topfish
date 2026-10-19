@@ -77,9 +77,10 @@
     .closing-panel { background: #eff6ff; border: 1px solid #bfdbfe; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
     .closing-panel p { font-size: 0.9rem; color: #1e40af; margin-bottom: 8px; font-weight: bold; }
 
-    .filters-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; margin-bottom: 15px; }
-    @media (max-width: 768px) { .filters-grid { grid-template-columns: 1fr; } }
-    .filter-input { padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; outline: none; background: #fff; }
+    /* Filtros Avançados */
+    .filters-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 15px; align-items: center; }
+    @media (max-width: 1024px) { .filters-grid { grid-template-columns: 1fr 1fr; } }
+    .filter-input { padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; outline: none; background: #fff; width: 100%; }
 
     .actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .btn {
@@ -311,24 +312,27 @@
           </div>
         </div>
 
+        <!-- FILTROS AVANÇADOS (Com Filtro de Data Inicial e Final) -->
         <div class="filters-grid">
-          <input type="text" class="filter-input" id="searchHist" placeholder="Filtrar por cliente, CNPJ ou nº do pedido..." onkeyup="renderizarHistorico()">
+          <input type="text" class="filter-input" id="searchHist" placeholder="Filtrar cliente, CNPJ ou nº..." onkeyup="renderizarHistorico()">
           <select class="filter-input" id="filterTipo" onchange="renderizarHistorico()">
-            <option value="todos">📑 Todos os Tipos</option>
-            <option value="venda">💼 Apenas Vendas Normais</option>
-            <option value="bonificacao">🎁 Apenas Bonificações</option>
+            <option value="todos">📑 Todos Tipos</option>
+            <option value="venda">💼 Apenas Vendas</option>
+            <option value="bonificacao">🎁 Apenas Bonif.</option>
           </select>
           <select class="filter-input" id="filterProduto" onchange="renderizarHistorico()">
-            <option value="todos">🐟 Todos os Produtos</option>
-            <option value="6">Tilápia drenada IQF [Cod 6]</option>
-            <option value="11">Tilápia 10% IQF [Cod 11]</option>
-            <option value="22">Tilápia 20% IQF [Cod 22]</option>
+            <option value="todos">🐟 Todos Produtos</option>
+            <option value="6">Tilápia drenada [Cod 6]</option>
+            <option value="11">Tilápia 10% [Cod 11]</option>
+            <option value="22">Tilápia 20% [Cod 22]</option>
             <option value="0">Filé Premium [Cod 0]</option>
             <option value="5">Filé Drenado [Cod 5]</option>
             <option value="10">Filé 10% [Cod 10]</option>
             <option value="20">Filé 20% [Cod 20]</option>
             <option value="50">Postas [Cod 50]</option>
           </select>
+          <input type="date" class="filter-input" id="filterDataInicio" title="Data Inicial" onchange="renderizarHistorico()" placeholder="Data Início">
+          <input type="date" class="filter-input" id="filterDataFim" title="Data Final" onchange="renderizarHistorico()" placeholder="Data Fim">
         </div>
         
         <div class="hist-header">
@@ -350,12 +354,11 @@
   <div id="toast">Mensagem aqui</div>
 
   <script>
-    if (!localStorage.getItem('topfish_versao_limpa_2026_v12')) {
+    if (!localStorage.getItem('topfish_versao_limpa_2026_v13')) {
       localStorage.removeItem('topfish_historico');
-      localStorage.setItem('topfish_versao_limpa_2026_v12', 'true');
+      localStorage.setItem('topfish_versao_limpa_2026_v13', 'true');
     }
 
-    // ⭐ COLE O SEU NOVO LINK CORRETO DO GOOGLE APPS SCRIPT AQUI ABAIXO:
     const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbwRIw3dv7JJrUCSSgFFANSE7Im7B7QlenDOgH0lvSrk1cpS0gBcWJQbVRHSsTvpIrJL/exec";
 
     let historicoPedidos = (JSON.parse(localStorage.getItem('topfish_historico')) || []).map(normalizarPedido);
@@ -1070,6 +1073,8 @@
       const busca = (document.getElementById('searchHist')?.value || '').toLowerCase();
       const tipoFiltro = document.getElementById('filterTipo')?.value || 'todos';
       const produtoFiltro = document.getElementById('filterProduto')?.value || 'todos';
+      const dataInicioFiltro = document.getElementById('filterDataInicio')?.value || '';
+      const dataFimFiltro = document.getElementById('filterDataFim')?.value || '';
 
       const pedidosFiltrados = historicoPedidos.filter(item => {
         if (item.status === "Cancelado") return false;
@@ -1078,7 +1083,16 @@
         const isBonif = item.regraComissao === 'bonificacao';
         let matchTipo = (tipoFiltro === 'todos') || (tipoFiltro === 'venda' ? !isBonif : isBonif);
         let matchProduto = (produtoFiltro === 'todos') || (item.codProduto == produtoFiltro);
-        return matchBusca && matchTipo && matchProduto;
+        
+        let matchData = true;
+        if (item.dataLancamento) {
+          if (dataInicioFiltro && item.dataLancamento < dataInicioFiltro) matchData = false;
+          if (dataFimFiltro && item.dataLancamento > dataFimFiltro) matchData = false;
+        } else if (dataInicioFiltro || dataFimFiltro) {
+          matchData = false;
+        }
+
+        return matchBusca && matchTipo && matchProduto && matchData;
       });
 
       let qtdAtivos = 0, totalVendasAtivas = 0, comissaoTotalAtiva = 0;
