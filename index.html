@@ -65,14 +65,15 @@
     }
     .financial-summary div span { color: var(--primary); font-size: 1.1rem; }
 
+    /* Consolidado do Histórico */
     .dashboard-consolidado {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px;
     }
     .dash-box {
-      background: #f8fafc; border: 1px solid var(--border); padding: 15px; border-radius: 8px; text-align: center;
+      background: #f8fafc; border: 1px solid var(--border); padding: 12px; border-radius: 8px; text-align: center;
     }
-    .dash-box p { font-size: 0.8rem; color: #64748b; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; }
-    .dash-box h3 { font-size: 1.2rem; color: var(--primary); }
+    .dash-box p { font-size: 0.75rem; color: #64748b; font-weight: bold; text-transform: uppercase; margin-bottom: 4px; }
+    .dash-box h3 { font-size: 1.1rem; color: var(--primary); }
 
     .closing-panel { background: #eff6ff; border: 1px solid #bfdbfe; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
     .closing-panel p { font-size: 0.9rem; color: #1e40af; margin-bottom: 8px; font-weight: bold; }
@@ -82,15 +83,13 @@
     @media (max-width: 1024px) { .filters-grid { grid-template-columns: 1fr 1fr; } }
     .filter-input { padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; outline: none; background: #fff; width: 100%; }
 
-    .actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .actions-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
     .btn {
-      padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; gap: 8px; color: white; transition: 0.2s;
+      padding: 14px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px; color: white; transition: 0.2s; font-size: 1rem;
     }
-    .btn-copy { background-color: var(--primary); }
-    .btn-copy:hover { background-color: var(--primary-hover); }
-    .btn-save { background-color: var(--success); }
-    .btn-save:hover { background-color: var(--success-hover); }
+    .btn-save-copy { background-color: var(--success); }
+    .btn-save-copy:hover { background-color: var(--success-hover); }
     .btn-excel { background-color: #0d9488; font-size: 0.9rem; padding: 10px 14px; }
     .btn-excel:hover { background-color: #0f766e; }
     .btn-closing { background-color: #2563eb; font-size: 0.9rem; padding: 10px 14px; }
@@ -262,9 +261,9 @@
           <textarea id="observacoes" rows="2" placeholder="Ex: Tilápia a maior possível, faturar com nota"></textarea>
         </div>
 
+        <!-- Botão Único Unificado: Salvar na Nuvem & Copiar WhatsApp -->
         <div class="actions-grid">
-          <button class="btn btn-copy" onclick="copiarPedidoWhatsApp()">📋 Copiar Texto Formatado (WhatsApp)</button>
-          <button class="btn btn-save" onclick="salvarPedidoHistórico()">☁️ Salvar Pedido na Nuvem</button>
+          <button class="btn btn-save-copy" onclick="salvarECopiarPedido()">☁️ Salvar na Nuvem & 📋 Copiar (WhatsApp)</button>
         </div>
         <button class="btn btn-cancel" id="btnCancelarEdit" style="width: 100%; margin-top: 10px;" onclick="limparFormulario()">❌ Cancelar Edição</button>
       </div>
@@ -297,22 +296,35 @@
 
         <h2>Histórico Geral de Pedidos <button onclick="sincronizarHistoricoNuvem()" style="font-size: 0.75rem; padding: 4px 8px; cursor: pointer; background: var(--primary); color: white; border: none; border-radius: 4px; margin-left: 10px;">🔄 Sincronizar Nuvem</button></h2>
 
+        <!-- PAINEL CONSOLIDADO SEPARADO (EM ABERTO VS TOTAL GERAL) + QTDS DA SEMANA/MÊS -->
         <div class="dashboard-consolidado">
-          <div class="dash-box">
-            <p>Qtd Pedidos</p>
-            <h3 id="dashQtd">0</h3>
+          <div class="dash-box" style="border-left: 4px solid var(--success);">
+            <p>Em Aberto (Vendas)</p>
+            <h3 id="dashVendasAberto">R$ 0,00</h3>
+          </div>
+          <div class="dash-box" style="border-left: 4px solid var(--success);">
+            <p>Em Aberto (Comissão)</p>
+            <h3 id="dashComissaoAberto" style="color: var(--success);">R$ 0,00</h3>
           </div>
           <div class="dash-box">
-            <p>Total de Vendas</p>
-            <h3 id="dashVendas">R$ 0,00</h3>
+            <p>Total Geral (Vendas)</p>
+            <h3 id="dashVendasGeral">R$ 0,00</h3>
           </div>
           <div class="dash-box">
-            <p>Comissão Total</p>
-            <h3 id="dashComissao" style="color: var(--success);">R$ 0,00</h3>
+            <p>Total Geral (Comissão)</p>
+            <h3 id="dashComissaoGeral">R$ 0,00</h3>
+          </div>
+          <div class="dash-box" style="background: #f0fdf4;">
+            <p>Qtd. Semana</p>
+            <h3 id="dashQtdSemana" style="color: var(--success);">0</h3>
+          </div>
+          <div class="dash-box" style="background: #eff6ff;">
+            <p>Qtd. Mês</p>
+            <h3 id="dashQtdMes" style="color: var(--primary);">0</h3>
           </div>
         </div>
 
-        <!-- FILTROS AVANÇADOS (Com Filtro de Data Inicial e Final) -->
+        <!-- FILTROS AVANÇADOS -->
         <div class="filters-grid">
           <input type="text" class="filter-input" id="searchHist" placeholder="Filtrar cliente, CNPJ ou nº..." onkeyup="renderizarHistorico()">
           <select class="filter-input" id="filterTipo" onchange="renderizarHistorico()">
@@ -354,9 +366,9 @@
   <div id="toast">Mensagem aqui</div>
 
   <script>
-    if (!localStorage.getItem('topfish_versao_limpa_2026_v13')) {
+    if (!localStorage.getItem('topfish_versao_limpa_2026_v14')) {
       localStorage.removeItem('topfish_historico');
-      localStorage.setItem('topfish_versao_limpa_2026_v13', 'true');
+      localStorage.setItem('topfish_versao_limpa_2026_v14', 'true');
     }
 
     const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbwRIw3dv7JJrUCSSgFFANSE7Im7B7QlenDOgH0lvSrk1cpS0gBcWJQbVRHSsTvpIrJL/exec";
@@ -755,37 +767,13 @@
       return msg.trim();
     }
 
-    function copiarPedidoWhatsApp() {
-      calcularValores();
-      const prodSelect = document.getElementById('produtoSelect');
-      const opt = prodSelect.options[prodSelect.selectedIndex];
-      const itemTemp = {
-        numPedido: document.getElementById('numPedido').value,
-        nomeFantasia: document.getElementById('clienteNomeFantasia').value || "Cliente Não Informado",
-        razaoSocial: document.getElementById('clienteRazaoSocial').value,
-        cnpj: document.getElementById('clienteCNPJ').value,
-        endereco: document.getElementById('clienteEndereco').value,
-        dataEntrega: document.getElementById('dataEntrega').value,
-        horario: document.getElementById('horarioRecebimento').value,
-        prazo: document.getElementById('prazoPagamento').value,
-        codProduto: prodSelect.value,
-        nomeProduto: opt.getAttribute('data-nome'),
-        qtdKg: parseFloat(document.getElementById('qtdKg').value) || 0,
-        precoVenda: parseFloat(document.getElementById('precoVenda').value) || 0,
-        regraComissao: document.getElementById('regraComissao').value,
-        obs: document.getElementById('observacoes').value
-      };
-      navigator.clipboard.writeText(gerarTextoWhatsAppUnico(itemTemp)).then(() => {
-        mostrarToast("✅ Texto formatado copiado!");
-      });
-    }
-
     async function enviarParaGoogleSheets(dados) {
       const ok = await enviarAcao({ action: 'salvar', ...dados });
-      mostrarToast(ok ? "☁️ Pedido salvo na nuvem!" : "⚠️ Salvo localmente (offline)");
+      return ok;
     }
 
-    function salvarPedidoHistórico() {
+    // ⭐ BOTÃO UNIFICADO: SALVA NA NUVEM E COPIA PARA O WHATSAPP AUTOMATICAMENTE
+    async function salvarECopiarPedido() {
       const dataLanc = document.getElementById('dataLancamento').value;
       const nomeFantasia = document.getElementById('clienteNomeFantasia').value.trim();
       const razaoSocial = document.getElementById('clienteRazaoSocial').value.trim();
@@ -833,15 +821,20 @@
       if (editId) {
         const index = historicoPedidos.findIndex(p => p.id == parseInt(editId));
         if (index !== -1) historicoPedidos[index] = dadosPedido;
-        mostrarToast("✏️ Pedido atualizado!");
+        mostrarToast("✏️ Pedido atualizado e copiado!");
       } else {
         historicoPedidos.unshift(dadosPedido);
-        mostrarToast("✅ Pedido gravado!");
+        mostrarToast("✅ Pedido gravado e copiado!");
       }
 
       localStorage.setItem('topfish_historico', JSON.stringify(historicoPedidos));
       atualizarListaClientesSelect();
-      enviarParaGoogleSheets(dadosPedido);
+      
+      // Copiar texto para o WhatsApp
+      navigator.clipboard.writeText(gerarTextoWhatsAppUnico(dadosPedido)).catch(() => {});
+
+      // Enviar para a nuvem
+      await enviarParaGoogleSheets(dadosPedido);
       limparFormulario();
     }
 
@@ -892,6 +885,7 @@
         localStorage.setItem('topfish_lista_fechamentos', JSON.stringify(listaFechamentos));
         gerarPlanilhaExcel(pedidosParaFechar, `Fechamento_Auto_${ultimoPedidoLote.numPedido}`);
         atualizarInfoFechamentoUI();
+        renderizarHistorico();
         mostrarToast(`🎯 Fechamento automático realizado até ${ultimoPedidoLote.numPedido}!`);
       }
     }
@@ -928,6 +922,7 @@
         localStorage.setItem('topfish_lista_fechamentos', JSON.stringify(listaFechamentos));
         gerarPlanilhaExcel(pedidosParaFechar, `Fechamento_Manual_${inicioStr}_a_${fimStr}`);
         atualizarInfoFechamentoUI();
+        renderizarHistorico();
         mostrarToast(`🎯 Fechamento manual de ${pedidosParaFechar.length} pedidos realizado!`);
       }
     }
@@ -1095,20 +1090,68 @@
         return matchBusca && matchTipo && matchProduto && matchData;
       });
 
-      let qtdAtivos = 0, totalVendasAtivas = 0, comissaoTotalAtiva = 0;
+      // Cálculo do último fechamento para separar Em Aberto vs Total Geral
+      let ultimoNumFechadoVal = 0;
+      if (listaFechamentos.length > 0) {
+        ultimoNumFechadoVal = parseInt(listaFechamentos[0].atePedido.replace(/\D/g, '')) || 0;
+      }
+
+      let vendasGeral = 0, comissaoGeral = 0;
+      let vendasAberto = 0, comissaoAberto = 0;
+      let qtdSemana = 0, qtdMes = 0;
+
+      const hoje = new Date();
+      const anoAtual = hoje.getFullYear();
+      const mesAtual = hoje.getMonth();
+      
+      // Calcular início da semana (Domingo)
+      const primeiroDiaSemana = new Date(hoje);
+      primeiroDiaSemana.setDate(hoje.getDate() - hoje.getDay());
+      primeiroDiaSemana.setHours(0,0,0,0);
+
       historicoPedidos.forEach(p => {
         if (p && p.status !== "Cancelado") {
-          qtdAtivos++;
-          totalVendasAtivas += (p.total || 0);
-          comissaoTotalAtiva += (p.comissao || 0);
+          const v = p.total || 0;
+          const c = p.comissao || 0;
+          vendasGeral += v;
+          comissaoGeral += c;
+
+          // Pedidos em aberto (após o último fechamento)
+          const numP = numDoPedido(p);
+          if (numP > ultimoNumFechadoVal) {
+            vendasAberto += v;
+            comissaoAberto += c;
+          }
+
+          // Verificação de semana e mês pela data de lançamento
+          if (p.dataLancamento) {
+            const parts = p.dataLancamento.split('-');
+            if (parts.length === 3) {
+              const dPedido = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+              if (!isNaN(dPedido.getTime())) {
+                if (dPedido >= primeiroDiaSemana && dPedido <= hoje) {
+                  qtdSemana++;
+                }
+                if (dPedido.getFullYear() === anoAtual && dPedido.getMonth() === mesAtual) {
+                  qtdMes++;
+                }
+              }
+            }
+          }
         }
       });
 
-      document.getElementById('dashQtd').innerText = qtdAtivos;
-      document.getElementById('dashVendas').innerText = totalVendasAtivas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-      const elComissao = document.getElementById('dashComissao');
-      elComissao.innerText = comissaoTotalAtiva.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-      elComissao.style.color = comissaoTotalAtiva >= 0 ? 'var(--success)' : 'var(--danger)';
+      // Atualizar os elementos no dashboard
+      document.getElementById('dashVendasAberto').innerText = vendasAberto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const elComAberto = document.getElementById('dashComissaoAberto');
+      elComAberto.innerText = comissaoAberto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      elComAberto.style.color = comissaoAberto >= 0 ? 'var(--success)' : 'var(--danger)';
+
+      document.getElementById('dashVendasGeral').innerText = vendasGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      document.getElementById('dashComissaoGeral').innerText = comissaoGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+      document.getElementById('dashQtdSemana').innerText = qtdSemana;
+      document.getElementById('dashQtdMes').innerText = qtdMes;
 
       if (pedidosFiltrados.length === 0) {
         div.innerHTML = '<p style="text-align:center; color:#64748b; padding: 20px;">Nenhum pedido ativo cadastrado.</p>';
