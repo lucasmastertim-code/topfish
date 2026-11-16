@@ -159,12 +159,6 @@
     <div id="novo-pedido" class="tab-content active">
       <div class="card">
         
-        <div class="reader-box">
-          <p>🤖 Transcrição Inteligente WhatsApp (IA)</p>
-          <textarea id="rawWhatsappText" rows="5" placeholder="Cole aqui qualquer mensagem do Zap..."></textarea>
-          <button class="btn btn-ai" onclick="processarTextoInteligente()">⚡ Transcrever e Preencher Pedido</button>
-        </div>
-
         <h2 id="formTitle">Dados do Cliente & Controle</h2>
         <input type="hidden" id="editPedidoId" value="">
         
@@ -193,7 +187,8 @@
           </div>
           <div class="form-group">
             <label>CNPJ / CPF *</label>
-            <input type="text" id="clienteCNPJ" placeholder="00.000.000/0000-00" required>
+            <input type="text" id="clienteCNPJ" placeholder="00.000.000/0000-00" inputmode="numeric" required oninput="buscarCnpjAutomatico(this)">
+            <small id="statusCnpj" style="font-size: 0.8rem; margin-top: 4px; color: #475569;"></small>
           </div>
         </div>
 
@@ -633,6 +628,102 @@
       if (dados.prazo) document.getElementById('prazoPagamento').value = dados.prazo;
     }
 
+    // ===== Busca automática por CNPJ (Receita Federal, via BrasilAPI) =====
+    const soDigitos = (v) => String(v || '').replace(/\D/g, '');
+
+    function cnpjValido(c) {
+      if (c.length !== 14 || /^(\d)\1+$/.test(c)) return false;
+      const dv = (n) => {
+        let soma = 0, peso = n - 7;
+        for (let i = 0; i < n; i++) { soma += parseInt(c[i]) * peso--; if (peso < 2) peso = 9; }
+        const r = soma % 11;
+        return r < 2 ? 0 : 11 - r;
+      };
+      return dv(12) === parseInt(c[12]) && dv(13) === parseInt(c[13]);
+    }
+
+    // "RUA DAS FLORES" -> "Rua das Flores" (mantém siglas como LTDA)
+    function tituloCase(txt) {
+      const siglas = ['LTDA', 'ME', 'EPP', 'EIRELI', 'SA', 'S/A', 'MEI', 'SPE', 'EI'];
+      const peq = ['de', 'da', 'do', 'das', 'dos', 'e'];
+      return String(txt || '').toLowerCase().split(/\s+/).filter(Boolean).map((w, i) => {
+        if (siglas.includes(w.toUpperCase())) return w.toUpperCase();
+        if (i > 0 && peq.includes(w)) return w;
+        return w.charAt(0).toUpperCase() + w.slice(1);
+      }).join(' ');
+    }
+
+    function statusCnpj(msg, erro) {
+      const el = document.getElementById('statusCnpj');
+      if (!el) return;
+      el.innerText = msg || '';
+      el.style.color = erro ? '#b91c1c' : '#475569';
+    }
+
+    let ultimoCnpjBuscado = '';
+    async function buscarCnpjAutomatico(inputEl) {
+      const dig = soDigitos(inputEl.value);
+      if (dig.length === 14) inputEl.value = dig.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+      if (dig.length !== 14) {
+        ultimoCnpjBuscado = '';
+        statusCnpj(dig.length === 11 ? 'CPF: preencha os dados manualmente.' : '');
+        return;
+      }
+      if (dig === ultimoCnpjBuscado) return;
+      if (!cnpjValido(dig)) { statusCnpj('⚠️ CNPJ inválido. Confira os números.', true); return; }
+      ultimoCnpjBuscado = dig;
+
+      // 1) cliente que já está no histórico: usa os dados salvos
+      const cache = window.clientesCadastradosCache || {};
+      const chave = Object.keys(cache).find(k => soDigitos(cache[k].cnpj) === dig);
+      if (chave) {
+        const busca = document.getElementById('inputBuscaCliente');
+        busca.value = chave;
+        verificarClienteDigitado(busca);
+        statusCnpj('✅ Cliente já cadastrado: dados carregados do histórico.');
+        return;
+      }
+
+      // 2) cliente novo: consulta a Receita Federal
+      statusCnpj('🔎 Buscando dados do CNPJ...');
+      try {
+        const res = await fetch('https://brasilapi.com.br/api/cnpj/v1/' + dig);
+        if (res.status === 404) { statusCnpj('CNPJ não encontrado na Receita. Preencha manualmente.', true); return; }
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const j = await res.json();
+        if (soDigitos(document.getElementById('clienteCNPJ').value) !== dig) return;   // CNPJ mudou enquanto buscava
+
+        const razao = tituloCase(j.razao_social);
+        const fantasia = tituloCase(j.nome_fantasia) || razao;
+        const logr = [j.descricao_tipo_de_logradouro || j.descricao_tipo_logradouro, j.logradouro].filter(Boolean).join(' ');
+        const cep = soDigitos(j.cep);
+        const endereco = [
+          tituloCase(logr), j.numero, tituloCase(j.complemento), tituloCase(j.bairro),
+          j.municipio ? `${tituloCase(j.municipio)}${j.uf ? ' - ' + j.uf : ''}` : '',
+          cep.length === 8 ? 'CEP ' + cep.replace(/^(\d{5})(\d{3})$/, '$1-$2') : ''
+        ].filter(Boolean).join(', ');
+
+        const elFant = document.getElementById('clienteNomeFantasia');
+        const elRazao = document.getElementById('clienteRazaoSocial');
+        const elEnd = document.getElementById('clienteEndereco');
+        const elBusca = document.getElementById('inputBuscaCliente');
+        if (!elFant.value.trim()) elFant.value = fantasia;
+        if (!elRazao.value.trim() || elRazao.value.trim().toLowerCase() === elFant.value.trim().toLowerCase()) elRazao.value = razao;
+        if (!elEnd.value.trim()) elEnd.value = endereco;
+        if (!elBusca.value.trim()) elBusca.value = elFant.value;
+
+        const sit = j.descricao_situacao_cadastral || '';
+        const alerta = sit && !/ativa/i.test(sit);
+        statusCnpj(alerta
+          ? `⚠️ Situação na Receita: ${sit}. Dados preenchidos, confira antes de vender.`
+          : '✅ Dados da Receita preenchidos. O endereço é o cadastrado na Receita: confira o local de entrega.', alerta);
+      } catch (err) {
+        console.log('Falha ao buscar CNPJ', err);
+        ultimoCnpjBuscado = '';
+        statusCnpj('Não consegui buscar agora (sem internet ou serviço fora do ar). Preencha manualmente.', true);
+      }
+    }
+
     function sincronizarNomeFantasia(el) {
       const val = el.value;
       const buscaInput = document.getElementById('inputBuscaCliente');
@@ -727,62 +818,6 @@
         sincronizarHistoricoNuvem();
         atualizarInfoFechamentoUI();
       }
-    }
-
-    async function processarTextoInteligente() {
-      const rawText = document.getElementById('rawWhatsappText').value;
-      if (!rawText.trim()) return alert("Cole o texto do WhatsApp!");
-      const lower = rawText.toLowerCase();
-      const isBonif = lower.includes('bonificação') || lower.includes('bonificacao') || lower.includes('descontar da comissao');
-
-      const cnpjMatch = rawText.match(/\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}\-?\d{2}\b|\b\d{14}\b/);
-      if (cnpjMatch) {
-        let numApenas = cnpjMatch[0].replace(/\D/g, '');
-        document.getElementById('clienteCNPJ').value = numApenas.length === 14 ? numApenas.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") : cnpjMatch[0];
-      }
-
-      let nomeCliente = "Cliente Não Informado";
-      const cadastrados = Object.keys(window.clientesCadastradosCache || {}).sort((a, b) => b.length - a.length);
-      const achado = cadastrados.find(n => lower.includes(n.toLowerCase()));
-      if (achado) nomeCliente = achado;
-      else if (lower.includes('daruma')) nomeCliente = "Daruma";
-      else if (lower.includes('kanpai')) nomeCliente = "Kanpai";
-      else if (lower.includes('koichi')) nomeCliente = "Koichi";
-      else if (lower.includes('sabor')) nomeCliente = "Sabor e Prosa";
-
-      document.getElementById('clienteNomeFantasia').value = nomeCliente;
-      document.getElementById('clienteRazaoSocial').value = nomeCliente;
-      document.getElementById('inputBuscaCliente').value = nomeCliente;
-      verificarClienteDigitado(document.getElementById('inputBuscaCliente'));
-
-      const kgMatches = [...rawText.matchAll(/(\d+[\.,]?\d*)\s*(kg|kilos|kilo)/gi)];
-      document.getElementById('qtdKg').value = kgMatches.length > 0 ? parseFloat(kgMatches[0][1].replace(',', '.')) : 15;
-
-      const sel = document.getElementById('produtoSelect');
-      const ehFile = /fil[eé]t?/.test(lower);
-      if (lower.includes('posta')) sel.value = "50";
-      else if (ehFile && lower.includes('premium')) sel.value = "0";
-      else if (ehFile && lower.includes('20%')) sel.value = "20";
-      else if (ehFile && lower.includes('10%')) sel.value = "10";
-      else if (ehFile && lower.includes('dren')) sel.value = "5";
-      else if (lower.includes('20%')) sel.value = "22";
-      else if (lower.includes('10%')) sel.value = "11";
-      else sel.value = "6";
-
-      if (isBonif) {
-        document.getElementById('regraComissao').value = 'bonificacao';
-        document.getElementById('precoVenda').value = "0.00";
-        document.getElementById('prazoPagamento').value = "Bonificação";
-        document.getElementById('observacoes').value = "🎁 BONIFICAÇÃO";
-      } else {
-        const semCnpj = rawText.replace(/\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}\-?\d{2}\b|\b\d{14}\b/g, ' ');
-        const precoMatch = semCnpj.match(/R\$\s*(\d{2}[\.,]\d{1,2})/i) || semCnpj.match(/(\d{2}[\.,]\d{1,2})\s*(?:\/|por)?\s*kg/i) || semCnpj.match(/(\d{2}[\.,]\d{1,2})/);
-        if (precoMatch) document.getElementById('precoVenda').value = parseFloat(precoMatch[1].replace(',', '.')).toFixed(2);
-        document.getElementById('regraComissao').value = 'auto';
-        document.getElementById('observacoes').value = "";
-      }
-      calcularValores(!isBonif);
-      mostrarToast("⚡ Texto transcrito!");
     }
 
     function atualizarPrecoTabela() {
@@ -1153,7 +1188,6 @@
 
     function limparFormulario() {
       document.getElementById('editPedidoId').value = '';
-      document.getElementById('rawWhatsappText').value = '';
       document.getElementById('inputBuscaCliente').value = '';
       document.getElementById('numPedido').value = '';
       document.getElementById('dataLancamento').value = '';
@@ -1162,6 +1196,8 @@
       document.getElementById('clienteNomeFantasia').value = '';
       document.getElementById('clienteRazaoSocial').value = '';
       document.getElementById('clienteCNPJ').value = '';
+      ultimoCnpjBuscado = '';
+      statusCnpj('');
       document.getElementById('clienteEndereco').value = '';
       document.getElementById('dataEntrega').value = '';
       document.getElementById('horarioRecebimento').value = '';
