@@ -79,7 +79,7 @@
     .closing-panel p { font-size: 0.9rem; color: #1e40af; margin-bottom: 8px; font-weight: bold; }
 
     /* Filtros Avançados */
-    .filters-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 15px; align-items: center; }
+    .filters-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 15px; align-items: center; }
     @media (max-width: 1024px) { .filters-grid { grid-template-columns: 1fr 1fr; } }
     .filter-input { padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; outline: none; background: #fff; width: 100%; }
 
@@ -343,6 +343,11 @@
             <option value="20">Filé 20% [Cod 20]</option>
             <option value="50">Postas [Cod 50]</option>
           </select>
+          <select class="filter-input" id="filterStatus" onchange="renderizarHistorico()">
+            <option value="todos">📌 Todos Status</option>
+            <option value="aberto">🟡 Em aberto</option>
+            <option value="fechado">✅ Fechados</option>
+          </select>
           <input type="date" class="filter-input" id="filterDataInicio" title="Data Inicial" onchange="renderizarHistorico()" placeholder="Data Início">
           <input type="date" class="filter-input" id="filterDataFim" title="Data Final" onchange="renderizarHistorico()" placeholder="Data Fim">
         </div>
@@ -374,7 +379,48 @@
     const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbwRIw3dv7JJrUCSSgFFANSE7Im7B7QlenDOgH0lvSrk1cpS0gBcWJQbVRHSsTvpIrJL/exec";
 
     let historicoPedidos = (JSON.parse(localStorage.getItem('topfish_historico')) || []).map(normalizarPedido);
-    let listaFechamentos = JSON.parse(localStorage.getItem('topfish_lista_fechamentos')) || [];
+    let listaFechamentos = (JSON.parse(localStorage.getItem('topfish_lista_fechamentos')) || []).map(normalizarFechamento);
+    let ultimaRespostaNuvem = null;
+
+    function normalizarFechamento(f) {
+      f = f || {};
+      const doSnapshot = Array.isArray(f.pedidos) ? f.pedidos.map(numDoPedido).filter(n => n > 0) : [];
+      return {
+        id: String(f.id),
+        tipo: f.tipo || 'Automático',
+        dePedido: f.dePedido || '',
+        atePedido: f.atePedido || '',
+        dataFechamento: f.dataFechamento || '',
+        qtdPedidos: paraNumero(f.qtdPedidos),
+        vendasTotal: paraNumero(f.vendasTotal),
+        comissaoTotal: paraNumero(f.comissaoTotal),
+        numeros: Array.isArray(f.numeros) && f.numeros.length ? f.numeros.map(Number).filter(n => n > 0) : doSnapshot,
+        pedidos: Array.isArray(f.pedidos) ? f.pedidos : undefined,
+        naNuvem: !!f.naNuvem
+      };
+    }
+    function registroParaNuvem(f) {
+      return { id: String(f.id), tipo: f.tipo, dePedido: f.dePedido, atePedido: f.atePedido,
+        dataFechamento: f.dataFechamento, qtdPedidos: f.qtdPedidos, vendasTotal: f.vendasTotal,
+        comissaoTotal: f.comissaoTotal, numeros: numerosDoFechamento(f) };
+    }
+    function numerosDoFechamento(f) {
+      if (f.numeros && f.numeros.length) return f.numeros;
+      const de = numDoPedido({ numPedido: f.dePedido }) || 1;
+      const ate = numDoPedido({ numPedido: f.atePedido });
+      const arr = [];
+      for (let n = de; n <= ate && arr.length < 100000; n++) arr.push(n);
+      return arr;
+    }
+    // Conjunto de todos os números de pedido que já entraram em algum fechamento
+    function numerosFechados() {
+      const set = new Set();
+      listaFechamentos.forEach(f => numerosDoFechamento(f).forEach(n => set.add(n)));
+      return set;
+    }
+    function salvarFechamentosLocal() {
+      localStorage.setItem('topfish_lista_fechamentos', JSON.stringify(listaFechamentos));
+    }
 
     function esc(v) {
       return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -443,6 +489,7 @@
           body: JSON.stringify(payload)
         });
         const json = JSON.parse(await res.text());
+        if (json && json.result === 'success') ultimaRespostaNuvem = json;
         return !!(json && json.result === 'success');
       } catch (err) {
         return false;
@@ -450,7 +497,7 @@
     }
     async function enviarAcao(payload) {
       const ok = await postarNuvem(payload);
-      if (!ok) { pendentesNuvem.push(payload); salvarPendentes(); }
+      if (!ok) { pendentesNuvem.push({ ...payload, novo: false }); salvarPendentes(); }
       return ok;
     }
     async function enviarPendentes() {
@@ -473,6 +520,11 @@
       mostrarToast("🔄 Sincronizando com a planilha da nuvem...");
       try {
         await enviarPendentes();
+        if (pendentesNuvem.length > 0) {
+          mostrarToast(`⚠️ ${pendentesNuvem.length} envio(s) pendente(s). Mantendo dados locais.`);
+          renderizarHistorico();
+          return;
+        }
         const response = await fetch(URL_GOOGLE_SCRIPT + '?t=' + Date.now(), { method: 'GET', redirect: 'follow' });
         const textData = await response.text();
         let dadosNuvem = JSON.parse(textData);
@@ -484,15 +536,50 @@
           if (!document.getElementById('editPedidoId').value) {
             document.getElementById('numPedido').value = `#PED-${obterProximoNumeroPedido()}`;
           }
+          await sincronizarFechamentosNuvem();
           atualizarListaClientesSelect();
           renderizarHistorico();
           atualizarInfoFechamentoUI();
           mostrarToast(`✅ Sincronizado! ${dadosNuvem.length} registros.`);
+        } else {
+          console.error(dadosNuvem);
+          mostrarToast("⚠️ A nuvem devolveu um erro (veja o console)");
         }
       } catch (err) {
         mostrarToast("⚠️ Erro de conexão com a nuvem.");
       } finally {
         sincronizando = false;
+      }
+    }
+
+    // Fechamentos: a planilha é a fonte da verdade; o que só existe neste aparelho sobe para a nuvem
+    async function sincronizarFechamentosNuvem() {
+      try {
+        const res = await fetch(URL_GOOGLE_SCRIPT + '?acao=fechamentos&t=' + Date.now(), { redirect: 'follow' });
+        const dados = JSON.parse(await res.text());
+        if (!Array.isArray(dados)) return;
+        if (dados.length && !dados.every(x => x && Array.isArray(x.numeros))) {
+          mostrarToast("⚠️ Atualize o script da planilha (nova versão) para guardar os fechamentos na nuvem.");
+          return;
+        }
+        const nuvem = dados.map(normalizarFechamento);
+        const idsNuvem = new Set(nuvem.map(f => f.id));
+        const locais = {};
+        listaFechamentos.forEach(f => { locais[f.id] = f; });
+        nuvem.forEach(f => { f.naNuvem = true; if (locais[f.id] && locais[f.id].pedidos) f.pedidos = locais[f.id].pedidos; });
+
+        const mantidos = [];
+        for (const f of listaFechamentos) {
+          if (idsNuvem.has(f.id)) continue;
+          if (f.naNuvem) continue;   // já esteve na nuvem e foi desfeito em outro aparelho
+          if (await postarNuvem({ action: 'fechamento', registro: registroParaNuvem(f) })) f.naNuvem = true;
+          mantidos.push(f);
+        }
+        listaFechamentos = [...nuvem, ...mantidos]
+          .sort((a, b) => String(b.dataFechamento).localeCompare(String(a.dataFechamento)));
+        salvarFechamentosLocal();
+      } catch (err) {
+        console.log('Fechamentos: sem conexão', err);
       }
     }
 
@@ -505,16 +592,18 @@
         const p = historicoPedidos[i];
         if (p && p.nomeFantasia && p.nomeFantasia.trim() !== '' && p.status !== "Cancelado") {
           const nomeKey = p.nomeFantasia.trim();
+          const ant = clientesUnicos[nomeKey] || {};   // histórico vem do mais novo p/ o mais antigo
           clientesUnicos[nomeKey] = {
-            razaoSocial: p.razaoSocial || nomeKey,
-            cnpj: p.cnpj || clientesUnicos[nomeKey]?.cnpj || '',
-            endereco: p.endereco || clientesUnicos[nomeKey]?.endereco || '',
-            dataEntrega: p.dataEntrega || clientesUnicos[nomeKey]?.dataEntrega || '',
-            horario: p.horario || clientesUnicos[nomeKey]?.horario || '',
-            prazo: p.prazo || clientesUnicos[nomeKey]?.prazo || '14 dias'
+            razaoSocial: ant.razaoSocial || p.razaoSocial || nomeKey,
+            cnpj: ant.cnpj || p.cnpj || '',
+            endereco: ant.endereco || p.endereco || '',
+            dataEntrega: ant.dataEntrega || p.dataEntrega || '',
+            horario: ant.horario || p.horario || '',
+            prazo: ant.prazo || p.prazo || ''
           };
         }
       }
+      for (const k in clientesUnicos) { if (!clientesUnicos[k].prazo) clientesUnicos[k].prazo = '14 dias'; }
       for (let nome in clientesUnicos) {
         const option = document.createElement('option');
         option.value = nome;
@@ -526,27 +615,22 @@
     function verificarClienteDigitado(inputEl) {
       const nomeEscolhido = inputEl.value.trim();
       if (!nomeEscolhido) return;
-      document.getElementById('clienteNomeFantasia').value = nomeEscolhido;
-      document.getElementById('clienteRazaoSocial').value = nomeEscolhido;
-      if (window.clientesCadastradosCache && window.clientesCadastradosCache[nomeEscolhido]) {
-        const dados = window.clientesCadastradosCache[nomeEscolhido];
-        document.getElementById('clienteRazaoSocial').value = dados.razaoSocial || nomeEscolhido;
-        document.getElementById('clienteCNPJ').value = dados.cnpj || '';
-        document.getElementById('clienteEndereco').value = dados.endereco || '';
-        if (dados.dataEntrega) document.getElementById('dataEntrega').value = dados.dataEntrega;
-        if (dados.horario) document.getElementById('horarioRecebimento').value = dados.horario;
-        if (dados.prazo) document.getElementById('prazoPagamento').value = dados.prazo;
-      } else {
-        const encontrado = historicoPedidos.find(p => p.nomeFantasia && p.nomeFantasia.toLowerCase().includes(nomeEscolhido.toLowerCase()) && p.status !== "Cancelado");
-        if (encontrado) {
-          document.getElementById('clienteRazaoSocial').value = encontrado.razaoSocial || nomeEscolhido;
-          document.getElementById('clienteCNPJ').value = encontrado.cnpj || '';
-          document.getElementById('clienteEndereco').value = encontrado.endereco || '';
-          if (encontrado.dataEntrega) document.getElementById('dataEntrega').value = encontrado.dataEntrega;
-          if (encontrado.horario) document.getElementById('horarioRecebimento').value = encontrado.horario;
-          if (encontrado.prazo) document.getElementById('prazoPagamento').value = encontrado.prazo;
-        }
+      const cache = window.clientesCadastradosCache || {};
+      const chave = Object.keys(cache).find(k => k.toLowerCase() === nomeEscolhido.toLowerCase());
+      if (!chave) {
+        // cliente novo ou nome ainda incompleto: só repete o nome (não puxa dados de outro cliente)
+        document.getElementById('clienteNomeFantasia').value = nomeEscolhido;
+        document.getElementById('clienteRazaoSocial').value = nomeEscolhido;
+        return;
       }
+      const dados = cache[chave];
+      document.getElementById('clienteNomeFantasia').value = chave;
+      document.getElementById('clienteRazaoSocial').value = dados.razaoSocial || chave;
+      document.getElementById('clienteCNPJ').value = dados.cnpj || '';
+      document.getElementById('clienteEndereco').value = dados.endereco || '';
+      if (dados.dataEntrega) document.getElementById('dataEntrega').value = dados.dataEntrega;
+      if (dados.horario) document.getElementById('horarioRecebimento').value = dados.horario;
+      if (dados.prazo) document.getElementById('prazoPagamento').value = dados.prazo;
     }
 
     function sincronizarNomeFantasia(el) {
@@ -559,12 +643,20 @@
       const infoEl = document.getElementById('infoUltimoFechamento');
       if (!infoEl) return;
       if (listaFechamentos.length > 0) {
-        const ultimo = listaFechamentos[0];
-        const tipoDesc = ultimo.tipo || 'Automático';
-        const intervalo = ultimo.dePedido ? `${ultimo.dePedido} até ${ultimo.atePedido}` : `Até ${ultimo.atePedido}`;
-        infoEl.innerText = `📌 Último Fechamento (${tipoDesc}): Pedido ${intervalo} em ${new Date(ultimo.dataFechamento).toLocaleDateString('pt-BR')}.`;
+        const u = listaFechamentos[0];
+        const intervalo = u.dePedido ? `${u.dePedido} até ${u.atePedido}` : `até ${u.atePedido}`;
+        infoEl.innerText = `📌 Último Fechamento (${u.tipo}): ${intervalo} em ${new Date(u.dataFechamento).toLocaleDateString('pt-BR')} (${u.qtdPedidos} pedidos).`;
       } else {
         infoEl.innerText = `📌 Nenhum fechamento periódico registrado ainda.`;
+      }
+      // sugere o intervalo manual com o que ainda está em aberto
+      const fechados = numerosFechados();
+      const abertos = historicoPedidos.filter(p => p.status !== "Cancelado" && numDoPedido(p) > 0 && !fechados.has(numDoPedido(p))).map(numDoPedido);
+      const ini = document.getElementById('manualPedidoInicio');
+      const fim = document.getElementById('manualPedidoFim');
+      if (ini && fim && abertos.length) {
+        if (!ini.dataset.editado) ini.value = `#PED-${Math.min(...abertos)}`;
+        if (!fim.dataset.editado) fim.value = `#PED-${Math.max(...abertos)}`;
       }
       renderizarListaFechamentosAnteriores();
     }
@@ -580,18 +672,18 @@
       listaFechamentos.forEach((f, index) => {
         const card = document.createElement('div');
         card.className = 'closing-card';
-        const tipoDesc = f.tipo || 'Automático';
-        const intervalo = f.dePedido ? `${f.dePedido} até ${f.atePedido}` : `Até ${f.atePedido}`;
+        const intervalo = f.dePedido ? `${f.dePedido} até ${f.atePedido}` : `até ${f.atePedido}`;
         card.innerHTML = `
           <div class="header-info">
-            <span>📁 Fechamento #${listaFechamentos.length - index} (${tipoDesc} - ${intervalo})</span>
+            <span>📁 Fechamento #${listaFechamentos.length - index} (${esc(f.tipo)} - ${esc(intervalo)})</span>
             <span style="color: var(--success);">Comissão: R$ ${f.comissaoTotal.toFixed(2)}</span>
           </div>
           <div class="details">
-            <strong>Data:</strong> ${new Date(f.dataFechamento).toLocaleDateString('pt-BR')} | <strong>Qtd:</strong> ${f.qtdPedidos} | <strong>Vendas:</strong> R$ ${f.vendasTotal.toFixed(2)}
+            <strong>Data:</strong> ${new Date(f.dataFechamento).toLocaleDateString('pt-BR')} | <strong>Qtd:</strong> ${f.qtdPedidos} | <strong>Vendas:</strong> R$ ${f.vendasTotal.toFixed(2)}${f.naNuvem ? '' : ' | <strong>☁️ aguardando envio</strong>'}
           </div>
           <div class="card-actions">
-            <button class="btn-action download" onclick="baixarFechamentoAntigo(${f.id})">📥 Baixar</button>
+            <button class="btn-action download" onclick="baixarFechamentoAntigo('${esc(f.id)}')">📥 Baixar</button>
+            <button class="btn-action delete" onclick="desfazerFechamento('${esc(f.id)}')">↩️ Desfazer</button>
           </div>
         `;
         container.appendChild(card);
@@ -650,7 +742,10 @@
       }
 
       let nomeCliente = "Cliente Não Informado";
-      if (lower.includes('daruma')) nomeCliente = "Daruma";
+      const cadastrados = Object.keys(window.clientesCadastradosCache || {}).sort((a, b) => b.length - a.length);
+      const achado = cadastrados.find(n => lower.includes(n.toLowerCase()));
+      if (achado) nomeCliente = achado;
+      else if (lower.includes('daruma')) nomeCliente = "Daruma";
       else if (lower.includes('kanpai')) nomeCliente = "Kanpai";
       else if (lower.includes('koichi')) nomeCliente = "Koichi";
       else if (lower.includes('sabor')) nomeCliente = "Sabor e Prosa";
@@ -664,7 +759,12 @@
       document.getElementById('qtdKg').value = kgMatches.length > 0 ? parseFloat(kgMatches[0][1].replace(',', '.')) : 15;
 
       const sel = document.getElementById('produtoSelect');
+      const ehFile = /fil[eé]t?/.test(lower);
       if (lower.includes('posta')) sel.value = "50";
+      else if (ehFile && lower.includes('premium')) sel.value = "0";
+      else if (ehFile && lower.includes('20%')) sel.value = "20";
+      else if (ehFile && lower.includes('10%')) sel.value = "10";
+      else if (ehFile && lower.includes('dren')) sel.value = "5";
       else if (lower.includes('20%')) sel.value = "22";
       else if (lower.includes('10%')) sel.value = "11";
       else sel.value = "6";
@@ -675,12 +775,13 @@
         document.getElementById('prazoPagamento').value = "Bonificação";
         document.getElementById('observacoes').value = "🎁 BONIFICAÇÃO";
       } else {
-        const precoMatch = rawText.match(/(\d{2}[\.,]\d{1,2})/);
+        const semCnpj = rawText.replace(/\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}\-?\d{2}\b|\b\d{14}\b/g, ' ');
+        const precoMatch = semCnpj.match(/R\$\s*(\d{2}[\.,]\d{1,2})/i) || semCnpj.match(/(\d{2}[\.,]\d{1,2})\s*(?:\/|por)?\s*kg/i) || semCnpj.match(/(\d{2}[\.,]\d{1,2})/);
         if (precoMatch) document.getElementById('precoVenda').value = parseFloat(precoMatch[1].replace(',', '.')).toFixed(2);
         document.getElementById('regraComissao').value = 'auto';
         document.getElementById('observacoes').value = "";
       }
-      calcularValores(false);
+      calcularValores(!isBonif);
       mostrarToast("⚡ Texto transcrito!");
     }
 
@@ -767,8 +868,9 @@
       return msg.trim();
     }
 
-    async function enviarParaGoogleSheets(dados) {
-      const ok = await enviarAcao({ action: 'salvar', ...dados });
+    async function enviarParaGoogleSheets(dados, novo) {
+      ultimaRespostaNuvem = null;
+      const ok = await enviarAcao({ action: 'salvar', novo: !!novo, ...dados });
       return ok;
     }
 
@@ -834,7 +936,16 @@
       navigator.clipboard.writeText(gerarTextoWhatsAppUnico(dadosPedido)).catch(() => {});
 
       // Enviar para a nuvem
-      await enviarParaGoogleSheets(dadosPedido);
+      const ok = await enviarParaGoogleSheets(dadosPedido, !editId);
+      if (ok && !editId && ultimaRespostaNuvem && ultimaRespostaNuvem.numPedido && ultimaRespostaNuvem.numPedido !== dadosPedido.numPedido) {
+        const antigo = dadosPedido.numPedido;
+        dadosPedido.numPedido = ultimaRespostaNuvem.numPedido;
+        localStorage.setItem('topfish_historico', JSON.stringify(historicoPedidos));
+        navigator.clipboard.writeText(gerarTextoWhatsAppUnico(dadosPedido)).catch(() => {});
+        alert(`⚠️ O número ${antigo} já tinha sido usado em outro aparelho.\nEste pedido ficou como ${dadosPedido.numPedido}. Se precisar do texto do WhatsApp atualizado, use o botão "Copiar" no histórico.`);
+      } else if (!ok) {
+        mostrarToast("⚠️ Sem conexão: pedido salvo aqui e será enviado depois.");
+      }
       limparFormulario();
     }
 
@@ -865,71 +976,87 @@
       mostrarToast("📊 Excel gerado com sucesso!");
     }
 
+    function registrarFechamento(tipo, pedidos, dePedido, atePedido) {
+      let somaVendas = 0, somaComissao = 0;
+      pedidos.forEach(p => { somaVendas += (p.total || 0); somaComissao += (p.comissao || 0); });
+      const f = normalizarFechamento({
+        id: String(Date.now()), tipo, dePedido, atePedido, dataFechamento: new Date().toISOString(),
+        qtdPedidos: pedidos.length, vendasTotal: somaVendas, comissaoTotal: somaComissao,
+        numeros: pedidos.map(numDoPedido).filter(n => n > 0)
+      });
+      f.pedidos = pedidos;
+      listaFechamentos.unshift(f);
+      salvarFechamentosLocal();
+      ['manualPedidoInicio', 'manualPedidoFim'].forEach(id => { const el = document.getElementById(id); delete el.dataset.editado; el.value = ''; });
+      postarNuvem({ action: 'fechamento', registro: registroParaNuvem(f) }).then(ok => {
+        if (ok) { f.naNuvem = true; salvarFechamentosLocal(); atualizarInfoFechamentoUI(); }
+        else mostrarToast("⚠️ Fechamento salvo aqui; vai para a nuvem na próxima sincronização.");
+      });
+      return f;
+    }
+
     function realizarFechamentoPeriodico() {
-      if (historicoPedidos.length === 0) return alert("Não há pedidos.");
-      let ultimoNumFechadoVal = 0;
-      if (listaFechamentos.length > 0) ultimoNumFechadoVal = parseInt(listaFechamentos[0].atePedido.replace(/\D/g, '')) || 0;
-
-      const pedidosParaFechar = historicoPedidos.filter(p => p.status !== "Cancelado" && numDoPedido(p) > ultimoNumFechadoVal);
-      if (pedidosParaFechar.length === 0) return alert("Não há novos pedidos desde o último fechamento!");
-
-      const ultimoPedidoLote = pedidosParaFechar.reduce((a, b) => numDoPedido(b) > numDoPedido(a) ? b : a);
-      if (confirm(`Deseja realizar o fechamento automático com ${pedidosParaFechar.length} novo(s) pedido(s) (até ${ultimoPedidoLote.numPedido})?`)) {
-        let somaVendas = 0, somaComissao = 0;
-        pedidosParaFechar.forEach(p => { somaVendas += (p.total || 0); somaComissao += (p.comissao || 0); });
-        
-        listaFechamentos.unshift({
-          id: Date.now(), tipo: 'Automático', atePedido: ultimoPedidoLote.numPedido, dataFechamento: new Date().toISOString(),
-          qtdPedidos: pedidosParaFechar.length, vendasTotal: somaVendas, comissaoTotal: somaComissao, pedidos: pedidosParaFechar
-        });
-        localStorage.setItem('topfish_lista_fechamentos', JSON.stringify(listaFechamentos));
-        gerarPlanilhaExcel(pedidosParaFechar, `Fechamento_Auto_${ultimoPedidoLote.numPedido}`);
+      const fechados = numerosFechados();
+      const pedidos = historicoPedidos.filter(p => p.status !== "Cancelado" && numDoPedido(p) > 0 && !fechados.has(numDoPedido(p)));
+      if (pedidos.length === 0) return alert("Não há pedidos em aberto para fechar!");
+      const nums = pedidos.map(numDoPedido);
+      const de = `#PED-${Math.min(...nums)}`, ate = `#PED-${Math.max(...nums)}`;
+      if (confirm(`Fechar ${pedidos.length} pedido(s) em aberto (de ${de} até ${ate})?`)) {
+        registrarFechamento('Automático', pedidos, de, ate);
+        gerarPlanilhaExcel(pedidos, `Fechamento_Auto_${ate}`);
         atualizarInfoFechamentoUI();
         renderizarHistorico();
-        mostrarToast(`🎯 Fechamento automático realizado até ${ultimoPedidoLote.numPedido}!`);
+        mostrarToast(`🎯 Fechamento realizado: ${de} até ${ate}!`);
       }
     }
 
     function realizarFechamentoManual() {
       const inicioStr = (document.getElementById('manualPedidoInicio').value || '').trim().toUpperCase();
       const fimStr = (document.getElementById('manualPedidoFim').value || '').trim().toUpperCase();
-
       if (!inicioStr || !fimStr) {
-        return alert("⚠️ Informe o pedido inicial e o pedido final para o fechamento manual (ex: #PED-1001 e #PED-1020).");
+        return alert("⚠️ Informe o pedido inicial e o pedido final (ex: #PED-1001 e #PED-1020).");
       }
-
       const numInicio = parseInt(inicioStr.replace(/\D/g, '')) || 0;
       const numFim = parseInt(fimStr.replace(/\D/g, '')) || 0;
+      const fechados = numerosFechados();
 
-      const pedidosParaFechar = historicoPedidos.filter(p => {
-        if (p.status === "Cancelado") return false;
-        const n = numDoPedido(p);
-        return n >= numInicio && n <= numFim;
-      });
-
-      if (pedidosParaFechar.length === 0) {
-        return alert("⚠️ Nenhum pedido ativo encontrado nesse intervalo!");
+      const noIntervalo = historicoPedidos.filter(p => p.status !== "Cancelado" && numDoPedido(p) >= numInicio && numDoPedido(p) <= numFim);
+      const pedidos = noIntervalo.filter(p => !fechados.has(numDoPedido(p)));
+      const jaFechados = noIntervalo.length - pedidos.length;
+      if (pedidos.length === 0) {
+        return alert(jaFechados ? "⚠️ Todos os pedidos desse intervalo já foram fechados antes." : "⚠️ Nenhum pedido ativo encontrado nesse intervalo!");
       }
-
-      if (confirm(`Deseja realizar o fechamento manual de ${pedidosParaFechar.length} pedido(s) (de ${inicioStr} até ${fimStr})?`)) {
-        let somaVendas = 0, somaComissao = 0;
-        pedidosParaFechar.forEach(p => { somaVendas += (p.total || 0); somaComissao += (p.comissao || 0); });
-
-        listaFechamentos.unshift({
-          id: Date.now(), tipo: 'Manual', dePedido: inicioStr, atePedido: fimStr, dataFechamento: new Date().toISOString(),
-          qtdPedidos: pedidosParaFechar.length, vendasTotal: somaVendas, comissaoTotal: somaComissao, pedidos: pedidosParaFechar
-        });
-        localStorage.setItem('topfish_lista_fechamentos', JSON.stringify(listaFechamentos));
-        gerarPlanilhaExcel(pedidosParaFechar, `Fechamento_Manual_${inicioStr}_a_${fimStr}`);
+      const aviso = jaFechados ? `\n(${jaFechados} pedido(s) do intervalo já estavam fechados e ficam de fora.)` : '';
+      if (confirm(`Fechar ${pedidos.length} pedido(s) (de #PED-${numInicio} até #PED-${numFim})?${aviso}`)) {
+        registrarFechamento('Manual', pedidos, `#PED-${numInicio}`, `#PED-${numFim}`);
+        gerarPlanilhaExcel(pedidos, `Fechamento_Manual_PED-${numInicio}_a_PED-${numFim}`);
         atualizarInfoFechamentoUI();
         renderizarHistorico();
-        mostrarToast(`🎯 Fechamento manual de ${pedidosParaFechar.length} pedidos realizado!`);
+        mostrarToast(`🎯 Fechamento manual de ${pedidos.length} pedidos realizado!`);
       }
     }
 
     function baixarFechamentoAntigo(id) {
-      const f = listaFechamentos.find(x => x.id === id);
-      if (f) gerarPlanilhaExcel(f.pedidos, f.dePedido ? `Fechamento_Manual_${f.dePedido}_a_${f.atePedido}` : `Fechamento_Auto_${f.atePedido}`);
+      const f = listaFechamentos.find(x => String(x.id) === String(id));
+      if (!f) return;
+      const nums = numerosDoFechamento(f);
+      let pedidos = historicoPedidos.filter(p => nums.includes(numDoPedido(p)));
+      if (!pedidos.length && f.pedidos) pedidos = f.pedidos;
+      if (!pedidos.length) return alert("Não encontrei os pedidos deste fechamento. Sincronize a nuvem e tente de novo.");
+      gerarPlanilhaExcel(pedidos, f.dePedido ? `Fechamento_${f.tipo}_${f.dePedido}_a_${f.atePedido}` : `Fechamento_${f.tipo}_${f.atePedido}`);
+    }
+
+    async function desfazerFechamento(id) {
+      const f = listaFechamentos.find(x => String(x.id) === String(id));
+      if (!f) return;
+      if (!confirm(`Desfazer este fechamento (${f.dePedido ? f.dePedido + ' até ' : 'até '}${f.atePedido})?\nOs ${f.qtdPedidos} pedido(s) voltam para "em aberto".`)) return;
+      const ok = await postarNuvem({ action: 'excluirFechamento', id: String(f.id) });
+      if (!ok) return alert("⚠️ Sem conexão com a nuvem (ou script desatualizado). Tente de novo.");
+      listaFechamentos = listaFechamentos.filter(x => String(x.id) !== String(id));
+      salvarFechamentosLocal();
+      atualizarInfoFechamentoUI();
+      renderizarHistorico();
+      mostrarToast("↩️ Fechamento desfeito.");
     }
 
     function duplicarPedido(id) {
@@ -951,7 +1078,7 @@
       
       document.getElementById('produtoSelect').value = pedido.codProduto || '6';
       document.getElementById('qtdKg').value = pedido.qtdKg || 15;
-      document.getElementById('precoVenda').value = pedido.precoVenda || 39.30;
+      document.getElementById('precoVenda').value = (pedido.precoVenda != null && pedido.precoVenda !== '') ? pedido.precoVenda : 39.30;
       document.getElementById('regraComissao').value = pedido.regraComissao || 'auto';
       document.getElementById('observacoes').value = pedido.obs || '';
 
@@ -980,7 +1107,7 @@
       
       document.getElementById('produtoSelect').value = pedido.codProduto || '6';
       document.getElementById('qtdKg').value = pedido.qtdKg || 15;
-      document.getElementById('precoVenda').value = pedido.precoVenda || 39.30;
+      document.getElementById('precoVenda').value = (pedido.precoVenda != null && pedido.precoVenda !== '') ? pedido.precoVenda : 39.30;
       document.getElementById('regraComissao').value = pedido.regraComissao || 'auto';
       document.getElementById('observacoes').value = pedido.obs || '';
 
@@ -991,7 +1118,9 @@
     }
 
     function excluirPedido(id) {
-      if (confirm("Deseja cancelar este registro?")) {
+      const pedAlvo = historicoPedidos.find(p => p.id == id);
+      const avisoFechado = pedAlvo && numerosFechados().has(numDoPedido(pedAlvo)) ? "\n⚠️ Este pedido JÁ FOI FECHADO. Cancelar muda os totais já fechados." : "";
+      if (confirm("Deseja cancelar este registro?" + avisoFechado)) {
         const index = historicoPedidos.findIndex(p => p.id == id);
         if (index !== -1) {
           historicoPedidos[index].status = "Cancelado";
@@ -1027,6 +1156,7 @@
       document.getElementById('rawWhatsappText').value = '';
       document.getElementById('inputBuscaCliente').value = '';
       document.getElementById('numPedido').value = '';
+      document.getElementById('dataLancamento').value = '';
       setHojeData();
       gerarNumPedido();
       document.getElementById('clienteNomeFantasia').value = '';
@@ -1065,6 +1195,8 @@
       if (!div) return;
       div.innerHTML = '';
 
+      const fechadosSet = numerosFechados();
+      const statusFiltro = document.getElementById('filterStatus')?.value || 'todos';
       const busca = (document.getElementById('searchHist')?.value || '').toLowerCase();
       const tipoFiltro = document.getElementById('filterTipo')?.value || 'todos';
       const produtoFiltro = document.getElementById('filterProduto')?.value || 'todos';
@@ -1087,14 +1219,11 @@
           matchData = false;
         }
 
-        return matchBusca && matchTipo && matchProduto && matchData;
+        const fechadoItem = fechadosSet.has(numDoPedido(item));
+        const matchStatus = statusFiltro === 'todos' || (statusFiltro === 'fechado' ? fechadoItem : !fechadoItem);
+        return matchBusca && matchTipo && matchProduto && matchData && matchStatus;
       });
 
-      // Cálculo do último fechamento para separar Em Aberto vs Total Geral
-      let ultimoNumFechadoVal = 0;
-      if (listaFechamentos.length > 0) {
-        ultimoNumFechadoVal = parseInt(listaFechamentos[0].atePedido.replace(/\D/g, '')) || 0;
-      }
 
       let vendasGeral = 0, comissaoGeral = 0;
       let vendasAberto = 0, comissaoAberto = 0;
@@ -1118,7 +1247,7 @@
 
           // Pedidos em aberto (após o último fechamento)
           const numP = numDoPedido(p);
-          if (numP > ultimoNumFechadoVal) {
+          if (numP > 0 && !fechadosSet.has(numP)) {
             vendasAberto += v;
             comissaoAberto += c;
           }
@@ -1167,7 +1296,7 @@
             <input type="checkbox" class="pedido-checkbox" data-id="${item.id}">
             <div class="history-card-content">
               <div class="header-info">
-                <span>${esc(item.numPedido)} - ${esc(item.nomeFantasia)} ${isBonif ? ' [🎁 BONIFICAÇÃO]' : ''}</span>
+                <span>${esc(item.numPedido)} - ${esc(item.nomeFantasia)} ${isBonif ? ' [🎁 BONIFICAÇÃO]' : ''} ${numDoPedido(item) > 0 ? (fechadosSet.has(numDoPedido(item)) ? '<span style="background:#e2e8f0;color:#334155;font-size:0.7rem;padding:2px 6px;border-radius:4px;">✅ Fechado</span>' : '<span style="background:#fef3c7;color:#92400e;font-size:0.7rem;padding:2px 6px;border-radius:4px;">Em aberto</span>') : ''}</span>
                 <span style="color: var(--primary);">R$ ${(item.total || 0).toFixed(2)}</span>
               </div>
               <div class="details">
@@ -1200,9 +1329,11 @@
       setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
     }
 
+    ['manualPedidoInicio', 'manualPedidoFim'].forEach(id => document.getElementById(id).addEventListener('input', e => { e.target.dataset.editado = '1'; }));
     setHojeData();
     gerarNumPedido();
     calcularValores(false);
+    atualizarInfoFechamentoUI();
     sincronizarHistoricoNuvem();
   </script>
 </body>
