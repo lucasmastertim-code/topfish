@@ -310,13 +310,22 @@
             <h3 id="dashComissaoGeral">R$ 0,00</h3>
           </div>
           <div class="dash-box" style="background: #f0fdf4;">
-            <p>Qtd. Semana</p>
-            <h3 id="dashQtdSemana" style="color: var(--success);">0</h3>
+            <p id="dashSemanaTitulo">Comissão da Semana</p>
+            <h3 id="dashComSemana" style="color: var(--success);">R$ 0,00</h3>
+            <small id="dashSemanaDet" style="display:block; font-size:0.75rem; color:#64748b; margin-top:4px;"></small>
           </div>
           <div class="dash-box" style="background: #eff6ff;">
-            <p>Qtd. Mês</p>
-            <h3 id="dashQtdMes" style="color: var(--primary);">0</h3>
+            <p id="dashMesTitulo">Comissão do Mês</p>
+            <h3 id="dashComMes" style="color: var(--primary);">R$ 0,00</h3>
+            <small id="dashMesDet" style="display:block; font-size:0.75rem; color:#64748b; margin-top:4px;"></small>
           </div>
+        </div>
+
+        <!-- CLIENTES QUE PEDIRAM NA SEMANA PASSADA E AINDA NÃO PEDIRAM NESTA -->
+        <div style="background:#fffbeb; border:1px solid #fde68a; padding:15px; border-radius:8px; margin-bottom:15px;">
+          <p id="tituloReativacao" style="font-size:0.9rem; color:#92400e; font-weight:bold; margin-bottom:8px;">📞 Clientes para contatar</p>
+          <div id="listaReativacao" style="font-size:0.85rem; color:#334155; max-height:220px; overflow-y:auto;"></div>
+          <button class="btn btn-whatsapp-multi" style="margin-top:10px;" onclick="copiarListaReativacao()">📋 Copiar lista</button>
         </div>
 
         <!-- FILTROS AVANÇADOS -->
@@ -1226,6 +1235,88 @@
       });
     }
 
+    // ===== Comissão da semana (segunda a domingo) e do mês (dia 1 ao último dia) =====
+    const fmtMoeda = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    function ymd(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+    function ddmm(iso) { const m = String(iso).match(/^\d{4}-(\d{2})-(\d{2})/); return m ? `${m[2]}/${m[1]}` : iso; }
+    function somaDias(d, n) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() + n); return x; }
+    function segundaDaSemana(d) { return somaDias(d, -((d.getDay() + 6) % 7)); }
+    const NOMES_MES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+    function atualizarMetricasPeriodo(fechadosSet) {
+      const hoje = new Date();
+      const iniSem = segundaDaSemana(hoje), fimSem = somaDias(iniSem, 6);
+      const iniAnt = somaDias(iniSem, -7), fimAnt = somaDias(iniSem, -1);
+      const iniMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+      const [s0, s1, m0, m1, a0, a1] = [ymd(iniSem), ymd(fimSem), ymd(iniMes), ymd(fimMes), ymd(iniAnt), ymd(fimAnt)];
+
+      const sem = { qtd: 0, com: 0, aberto: 0 }, mes = { qtd: 0, com: 0, aberto: 0 };
+      const chave = (n) => String(n || '').trim().toLowerCase();
+      const semanaPassada = {}, estaSemana = new Set();
+
+      historicoPedidos.forEach(p => {
+        if (!p || p.status === "Cancelado") return;
+        const d = String(p.dataLancamento || '').slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+        const c = p.comissao || 0;
+        const numP = numDoPedido(p);
+        const emAberto = numP > 0 && !fechadosSet.has(numP);
+
+        if (d >= s0 && d <= s1) { sem.qtd++; sem.com += c; if (emAberto) sem.aberto += c; }
+        if (d >= m0 && d <= m1) { mes.qtd++; mes.com += c; if (emAberto) mes.aberto += c; }
+
+        // clientes (somente vendas; bonificação não conta como pedido do cliente)
+        if (p.regraComissao === 'bonificacao' || !p.nomeFantasia) return;
+        const k = chave(p.nomeFantasia);
+        if (d >= s0 && d <= s1) estaSemana.add(k);
+        else if (d >= a0 && d <= a1) {
+          const x = semanaPassada[k] || (semanaPassada[k] = { nome: p.nomeFantasia, pedidos: 0, kg: 0, total: 0, ultima: '' });
+          x.pedidos++; x.kg += p.qtdKg || 0; x.total += p.total || 0;
+          if (d > x.ultima) x.ultima = d;
+        }
+      });
+
+      const pintar = (id, v) => { const el = document.getElementById(id); el.innerText = fmtMoeda(v); el.style.color = v >= 0 ? 'var(--success)' : 'var(--danger)'; };
+      pintar('dashComSemana', sem.com);
+      pintar('dashComMes', mes.com);
+      document.getElementById('dashSemanaTitulo').innerText = `Comissão da Semana (${ddmm(s0)} a ${ddmm(s1)})`;
+      document.getElementById('dashMesTitulo').innerText = `Comissão de ${NOMES_MES[hoje.getMonth()]}`;
+      document.getElementById('dashSemanaDet').innerText = `${sem.qtd} pedido(s) · em aberto: ${fmtMoeda(sem.aberto)}`;
+      document.getElementById('dashMesDet').innerText = `${mes.qtd} pedido(s) · em aberto: ${fmtMoeda(mes.aberto)}`;
+
+      // clientes que pediram na semana passada e ainda não pediram nesta
+      const todos = Object.keys(semanaPassada);
+      listaReativacaoAtual = todos.filter(k => !estaSemana.has(k)).map(k => semanaPassada[k])
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+      const tit = document.getElementById('tituloReativacao');
+      const box = document.getElementById('listaReativacao');
+      box.innerHTML = '';
+      if (todos.length === 0) {
+        tit.innerText = `📞 Ninguém fez pedido na semana passada (${ddmm(a0)} a ${ddmm(a1)}).`;
+        return;
+      }
+      if (listaReativacaoAtual.length === 0) {
+        tit.innerText = `✅ Todos os ${todos.length} cliente(s) da semana passada já pediram nesta semana.`;
+        return;
+      }
+      tit.innerText = `📞 ${listaReativacaoAtual.length} de ${todos.length} cliente(s) que pediram na semana passada (${ddmm(a0)} a ${ddmm(a1)}) ainda não pediram nesta:`;
+      listaReativacaoAtual.forEach(c => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; justify-content:space-between; gap:8px; border-bottom:1px dashed #fde68a; padding:5px 0; flex-wrap:wrap;';
+        row.innerHTML = `<strong>${esc(c.nome)}</strong><span style="color:#64748b;">${c.pedidos} pedido(s) · ${c.kg} kg · ${fmtMoeda(c.total)} · último em ${ddmm(c.ultima)}</span>`;
+        box.appendChild(row);
+      });
+    }
+
+    let listaReativacaoAtual = [];
+    function copiarListaReativacao() {
+      if (!listaReativacaoAtual.length) return alert("Não há clientes na lista no momento.");
+      const linhas = listaReativacaoAtual.map(c => `- ${c.nome} (último pedido em ${ddmm(c.ultima)}, ${c.kg} kg)`);
+      navigator.clipboard.writeText("Pediram na semana passada e ainda não pediram nesta:\n" + linhas.join("\n"))
+        .then(() => mostrarToast("📋 Lista de clientes copiada!"));
+    }
+
     function renderizarHistorico() {
       const div = document.getElementById('listaHistorico');
       if (!div) return;
@@ -1263,17 +1354,6 @@
 
       let vendasGeral = 0, comissaoGeral = 0;
       let vendasAberto = 0, comissaoAberto = 0;
-      let qtdSemana = 0, qtdMes = 0;
-
-      const hoje = new Date();
-      const anoAtual = hoje.getFullYear();
-      const mesAtual = hoje.getMonth();
-      
-      // Calcular início da semana (Domingo)
-      const primeiroDiaSemana = new Date(hoje);
-      primeiroDiaSemana.setDate(hoje.getDate() - hoje.getDay());
-      primeiroDiaSemana.setHours(0,0,0,0);
-
       historicoPedidos.forEach(p => {
         if (p && p.status !== "Cancelado") {
           const v = p.total || 0;
@@ -1288,21 +1368,6 @@
             comissaoAberto += c;
           }
 
-          // Verificação de semana e mês pela data de lançamento
-          if (p.dataLancamento) {
-            const parts = p.dataLancamento.split('-');
-            if (parts.length === 3) {
-              const dPedido = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-              if (!isNaN(dPedido.getTime())) {
-                if (dPedido >= primeiroDiaSemana && dPedido <= hoje) {
-                  qtdSemana++;
-                }
-                if (dPedido.getFullYear() === anoAtual && dPedido.getMonth() === mesAtual) {
-                  qtdMes++;
-                }
-              }
-            }
-          }
         }
       });
 
@@ -1315,8 +1380,7 @@
       document.getElementById('dashVendasGeral').innerText = vendasGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
       document.getElementById('dashComissaoGeral').innerText = comissaoGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-      document.getElementById('dashQtdSemana').innerText = qtdSemana;
-      document.getElementById('dashQtdMes').innerText = qtdMes;
+      atualizarMetricasPeriodo(fechadosSet);
 
       if (pedidosFiltrados.length === 0) {
         div.innerHTML = '<p style="text-align:center; color:#64748b; padding: 20px;">Nenhum pedido ativo cadastrado.</p>';
